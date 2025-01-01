@@ -1,9 +1,6 @@
-# Entendemos target ln al objeto de abstracción n
-# donde la abstracción n consiste en la clase de equivalencia n veces
-# definido de manera recursiva, donde dos target l(n-1) son equivalentes
-# como target ln si su sucesores coinciden en l(n-1)
+# E.L.: Explicación línea.
 
-from itertools import product, combinations, chain
+from itertools import product, pairwise, combinations
 from shutil import copy, move
 from os.path import join, exists
 from os import remove
@@ -40,7 +37,7 @@ def guardar(coleccion: list[tuple], clase: tuple) -> None:
 
 ##########                       Para ramas.py                       ##########
     # Extras
-def blq(t: tuple, i: int, c_pos = True): # c_pos = condición de positividad
+def blq(t: tuple, i: int, c_pos = True):
     try:
         if c_pos and 0 > i: raise IndexError
         return t[i]
@@ -49,7 +46,7 @@ def blq(t: tuple, i: int, c_pos = True): # c_pos = condición de positividad
     # Condicionadores de existencia
 def is_seed_t1l9(fri_s, paridad): # Adaptable al caso (9 -> 0).
     # Supondré que no eres un perkin y el primer digito es mayor a 0.
-    c = reduce(
+    c = reduce(   # Esto se tiene que pasar a generador para que valga la pena.
             lambda c, i: c + ((blq(c, -2, False) + i) % 2, ),
             fri_s[:-1], tuple())
     for i, s in enumerate(fri_s[1:-1], 1):                               # (M2)
@@ -92,7 +89,7 @@ def T1l9(fri_s: tuple[int], paridad: int):
              for i in range(len(C)))
 
 def T1ln9(fri_s: tuple[int], paridad: int):
-    # Funcionamiento.
+    ##########                    Funcionamiento                     ##########
     # 1) Obtengo los bloques de nueves.
     # 2) A cada bloque le asigno un numero entre el 0 y su tamaño.
     #    Este numero representa la cantidad de nueves que le quitaremos al
@@ -120,9 +117,9 @@ def T1ln9(fri_s: tuple[int], paridad: int):
     del sec_actual # Que se joda. Me molesta que exista.
 
     ##########              Gestión de las alteraciones              ##########
-    for conf_scrs in product(  # Cantidad de descartados por bloque.
-                                *(range(len(blq) + 1) for blq in sec_nvs)
-                            ): # scrs : screenshot (pantallazo)
+    for conf_scrs in product(                                                   # conf_scrs es una tupla que indica cuantos nueves se
+                                *(range(len(blq) + 1) for blq in sec_nvs)       # suponen que son inoportunos dentro de cada bloque.
+                            ):                                                  # scrs : screenshot (pantallazo).
         # Eliminamos la cantidad de nueves que se dictan en cada bloque.
         s_mod = tuple(
                     j for i, j in enumerate(fri_s)
@@ -138,12 +135,35 @@ def T1ln9(fri_s: tuple[int], paridad: int):
         # Obtenemos las posiciones donde podemos colocar nueves inoportunos.
         a_mod = list(next(T1l9(s_mod, paridad)))
 
-        cuadre = lambda i, p: sec_nvs[i][p] - sum(conf_scrs[:i - p])
-        estado_previo = tuple(
-                                a_mod[cuadre(i, 0) - 1 : cuadre(i, -1) + 1]
-                                for i in range(len(conf_scrs)) if conf_scrs[i]
-                            )
-        posiciones = tuple()
+        cuadre = lambda i, p: sec_nvs[i][p] - sum(conf_scrs[:i - p]) # Pendiente, aquí puede que ocurra un error cuando se eliminan colas
+        p_dispo = tuple(                                                        # En esta variable se busca obtener las posiciones donde
+                        tuple(                                                  # se puede colocar nueves inoportunos por bloque en T1l9.
+                              cuadre(i, 0) - 1 + j                              # Explicación: Tengo len(conf_scrs) bloques, pero de
+                              for j, (l, r) in enumerate(pairwise(              # ellos me interesan solo los que les remuevo algo.
+                                  a_mod[cuadre(i, 0) - 1 : cuadre(i, -1) + 2]   # Por cada bloque, evaluo su correspondiente en el T1l9
+                                ), 1) if {l // 10, r // 10} == {0, 1}           # del modificado. Si una pareja está formada por uno que
+                            ) + (conf_scrs[i],)                                 # acarrea y otro que no, considero la posición que coloca
+                        for i in range(len(conf_scrs)) if conf_scrs[i]          # el nueve en medio de ellos.
+                        )
+        # Variamos
+        for b, distr in enumerate(
+                            product(
+                                *(MS(len(blk) - 1, blk[-1]) for blk in p_dispo)
+                            )):
+            a_mod_variado = a_mod.copy()
+            for i, n in enumerate(distr):
+                for _ in range(n): a_mod_variado.insert(
+                                                        p_dispo[b]       +
+                                                        sum(distr[:i])   +
+                                                        sum(
+                                                            k[-1]
+                                                            for k in p_dispo[:b]
+                                                            ),
+                                                        9
+                                                    )
+
+            yield a_mod_variado
+
 
 # for i in T1ln9((7,1,0,2,17,9,9,9,9,7,14,18,18,9,9,13,7,9,9,7,18,6,17,6,18), 1):
 #     print(i) #== (3,10,9,10,18,9,9,9,9,3,7,9,9,4,9,16,13,9,9,3,9,3,8,13,8))
@@ -165,10 +185,16 @@ def antecesores(fri: tuple[int], paridad):
     yield from T2l9(fri, paridad)
     yield from T2ln9(fri, paridad)
 
-    #Miscelaneos
+    ##########                      Miscelaneos                      ##########
 def falta_completar(nodos) -> tuple[tuple]:
-    # Retorna los FRI que no son semilla
-    # nodos es un generador
-    return tuple(filter(
-                    lambda nodo: not is_seed(nodo),
-                    nodos))
+    return tuple(filter(                                                        # Retorna los FRI que no son semilla.
+                    lambda nodo: not is_seed(nodo),                             # Se espera que nodos sea un generador.
+                    nodos))                                                     #
+
+def MS(largo: int, suma: int):                                                  # MS : Maneras de sumar
+    if largo == 1:                                                              # Obtiene todas las maneras de sumar "suma" en una tupla
+        yield (suma,)                                                           # de "largo" números.
+    else:                                                                       # Explicación: Recursivamente, cada manera se puede
+        for r in range(suma + 1):                                               # expresar como una tupla de largo "largo" - 1,
+            for t in MS(largo - 1, r):                                          # añadiendole al final, lo que le falta para dar "suma".
+                yield t + (suma - r, )                                          # Observar que MS es inyectiva en la segunda variable.
