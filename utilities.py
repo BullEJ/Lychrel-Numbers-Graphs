@@ -10,7 +10,7 @@ from os import remove
 from functools import reduce
 from more_itertools import powerset
 
-# Para main.py
+##########                       Para main.py                        ##########
 def guardar(coleccion: list[tuple], clase: tuple) -> None:
     try:
         if exists(join("clases", f"{clase}.txt")):
@@ -38,7 +38,7 @@ def guardar(coleccion: list[tuple], clase: tuple) -> None:
         print("El archivo no ha sido modificado.")
         raise(KeyboardInterrupt)
 
-# Para ramas.py
+##########                       Para ramas.py                       ##########
     # Extras
 def blq(t: tuple, i: int, c_pos = True): # c_pos = condición de positividad
     try:
@@ -78,7 +78,7 @@ def is_seed(fri_s: tuple[int]) -> bool:
     return (is_seed_t1l9(fri_s) or is_seed_t1ln9(fri_s) or
             is_seed_t2l9(fri_s) or is_seed_t2ln9(fri_s))
 
-    # Algoritmos para obtener antecesores.
+    ##########         Algoritmos para obtener antecesores         ##########
     # Acá se presupone que los fri_s entregados cumplen las condiciones para
     # poseer antecesor de cierto tipo.
 def T1l9(fri_s: tuple[int], paridad: int):
@@ -91,145 +91,62 @@ def T1l9(fri_s: tuple[int], paridad: int):
     yield tuple(int(0.5 * (fri_s[i] - MC[i])) + 10 * C[i]
              for i in range(len(C)))
 
-def T1ln9(fri_s: tuple[int], paridad: int): # Optimizar código
+def T1ln9(fri_s: tuple[int], paridad: int):
+    # Funcionamiento.
+    # 1) Obtengo los bloques de nueves.
+    # 2) A cada bloque le asigno un numero entre el 0 y su tamaño.
+    #    Este numero representa la cantidad de nueves que le quitaremos al
+    #    bloque, donde supondremos que esa es la cantidad de nueves inoportunos
+    #    en el bloque.
+    # 3) Pantallamos, obteniendo a la vez, el T1l9 del modificado.
+    # 4) Devolvemos todas las variaciones de las posibles posiciones donde se
+    #    le puede colocar los nueves inoportunos al T1l9 del modificado.
+
+    ##########             Obtener los bloques de nueves             ##########
+    # Extraer posiciones nueves.
+    sec_nvs, sec_actual = [], []
     
-    def all_combinations():
-        # Extraer posiciones nueves.
-        # Cada generado contiene los de largo mayor a 2 por lema que dice:
-        #   Si un fri tiene una cadena de 9's mayor a 2, no tiene T1l9.
-        sec_nueves = [[], []] # [[de largos menor a 3], [de largos mayor a 2]]
-        sec_actual = []
-        
-            # Iteramos sobre la fri_s
-        for indice, num in enumerate(fri_s[1:-1], 1):
-            if num == 9:
-                sec_actual.append(indice)
-            elif sec_actual: 
-                sec_nueves[len(sec_actual) > 2].append(sec_actual)
-                sec_actual = [] 
-        
-            # Si al final de la iteración aún hay una secuencia de 9's
-        if sec_actual:
-            sec_nueves[len(sec_actual) > 2].append(sec_actual)
+    # Iteramos sobre la fri_s
+    for indice, num in enumerate(fri_s[1:-1], 1):
+        if num == 9: sec_actual.append(indice)
+        elif sec_actual: 
+            sec_nvs.append(sec_actual)
+            sec_actual = [] 
+    
+    # Si al final de la iteración aún hay una secuencia de 9's
+    if sec_actual:
+        sec_nvs.append(sec_actual)
 
-        for j in powerset(sec_nueves[0]):
-            yield j + tuple(sec_nueves[1])
+    del sec_actual # Que se joda. Me molesta que exista.
 
-    def alterar_bloques(set_bloques: tuple[list[int]]): # Resolver confuncion entre las tuplas y listas
-                                                        # Revisar en qué puntos pueden aparecer sets vacios, para evitar que se repitan
-        # Setear el conjunto de posiciones que vamos a quitar definitivamente
-        # para después quitarlo.
-
-        linker = lambda rmv, sms = "": sorted(sum(rmv, ())) + [sms]
-
-        for set_dos in powerset(tuple(b) for b in set_bloques if len(b) > 2):
-            # No ocupamos todos los bloques > 2 porque pueden ser ocupados para
-            # dejar uno o ninguno.
-            no_trvls = {tuple(b) for b in set_bloques
-                                 if len(b) > 1 and tuple(b) not in set_dos}
-
-            for set_ninguno, set_uno in ([no_trvls - set(s), s] # Particiones
-                                         for s in powerset(no_trvls)):
-                # Aquí es donde se tiene que comenzar a retornar
-                # todas las alteraciones.
-            
-                # Quitar los que no dejan ningun nueve
-                variacion = set_ninguno.union(tuple(b) for b in set_bloques
-                                                if len(b) == 1)
-                # print("Los sets son:", set_ninguno, set_uno, set_dos, "Se intersecan?")
-                # print("A set_ninguno: ", set_ninguno, "se le agrega:", set(tuple(b) for b in set_bloques
-                #                                 if len(b) == 1))
-
-                # Controlamos el lado de los que dejan uno
-                if set_uno:
-                    # Aquí pantallamos, y pedimos la respuesta para rectificar
-                    # las posiciones de los que dejan uno.
-                    izq = yield linker(
-                                    chain(
-                                        variacion,
-                                        (b[1:] for b in set_uno),
-                                        (B[2:] for B in set_dos)
-                                        ),
-                                    (b[0] for b in set_uno)
+    ##########              Gestión de las alteraciones              ##########
+    for conf_scrs in product(  # Cantidad de descartados por bloque.
+                                *(range(len(blq) + 1) for blq in sec_nvs)
+                            ): # scrs : screenshot (pantallazo)
+        # Eliminamos la cantidad de nueves que se dictan en cada bloque.
+        s_mod = tuple(
+                    j for i, j in enumerate(fri_s)
+                      if i not in sum(
+                                        sec_nvs[b][r:]
+                                        for b, r in enumerate(conf_scrs), []
                                     )
+                    )
+        
+        # Pantallamos para ver si la configuración vale la pena.
+        if is_seed_t1l9(s_mod, paridad): continue
 
-                    if izq == "Candidato rechazado.":
-                        # Esto es para cuando no pasa por la parte que pensé
-                        # que siempre pasaría
-                        yield  "parcheado"
-                        continue
+        # Obtenemos las posiciones donde podemos colocar nueves inoportunos.
+        a_mod = list(next(T1l9(s_mod, paridad)))
 
-                    variacion.update(b[1:] if izq[b[0]] < 10 else b[:-1]
-                                     for b in set_uno)
-                    print("De unos se agrega:", tuple(b[1:] if izq[b[0]] < 10 else b[:-1]
-                                                        for b in set_uno))
-                    del izq
-
-                # Variar las posiciones de los que dejan dos:
-                # VALE LA PENA PASAR POR ESTE BUCLE SOLO CUANDO SEA NECESARIO
-                for items in product(*(b[:-1] for b in set_dos)):
-                    # La forma en la que funciona este bucle es el siguiente:
-                    # 1) Tomo una tupla con un elemento de cada bloque.
-                    # 2) Creo una nueva coleccion de tuplas donde cada tupla es
-                    #    una copia de alguno de set_dos sin el elemento que
-                    #    tomé en 1) ni el siguiente a él, para no quitarlos.
-                    if not set_dos: continue # *() como argumento devuelve algo
-
-                    alt = chain( # Alteración en los bloques de dos
-                                variacion,
-                                (tuple(i for i in b
-                                         if not (i in items or i - 1 in items))
-                                for b in set_dos)
-                                )
-                    print("Resultado con variacion:", variacion, "agregandole", tuple(tuple(i for i in b
-                                         if not (i in items or i - 1 in items))
-                                for b in set_dos))
-                    yield linker(alt)
-
-                if not set_dos: # En caso que no halla para variar posiciones:
-                    print("Resultado caso sin variaciones de dos:", variacion)
-                    yield linker(variacion)
-
-                yield ["out"]
-
-    for set_blqs in all_combinations():
-        g = alterar_bloques(set_blqs)
-        # print("set de bloques:", set_blqs)
-        for nves in g:
-            if nves == ["out"]: continue # Recordatorio de este comportamiento
-            s_suitor = tuple(
-                                fri_s[j] for j in range(len(fri_s))
-                                if j not in nves
+        cuadre = lambda i, p: sec_nvs[i][p] - sum(conf_scrs[:i - p])
+        estado_previo = tuple(
+                                a_mod[cuadre(i, 0) - 1 : cuadre(i, -1) + 1]
+                                for i in range(len(conf_scrs)) if conf_scrs[i]
                             )
-            # print()
-            # print(s_suitor, is_seed_t1l9(s_suitor, paridad))
-            # print()
-            # Por qué cuando respondo negativamente me pregunta dos veces?
-            if not is_seed_t1l9(s_suitor, paridad):
-                a_suitor = list(next(T1l9(s_suitor, paridad)))
+        posiciones = tuple()
 
-                if nves[:-1] and type(nves[-1]) != str: # Indicativo para rectificar
-                    nves = g.send({
-                                    i: a_suitor[i - 1 - len([n for n in nves[:-1]
-                                                           if n < i])]
-                                    for i in nves[-1]
-                                })
-
-                # Colocamos los nueves que fueron removidos
-                while nves[-1] != "out":
-                    print()
-                    print("posiciones:",nves)
-                    print()
-                    a_suitor_c = a_suitor.copy() # Para que setee los agregados
-                    for i in nves[:-1]: a_suitor_c.insert(i, 9)
-                    yield tuple(a_suitor_c)
-                    nves = next(g)
-
-            elif type(nves[-1]) != str: g.send("Candidato rechazado.")
-
-# Averiguar qué pasa aquí: Todavía falta depurar ubicación de los que dejan uno.
-for i in T1ln9((7,1,0,2,17,9,9,9,9,7,14,18,18,9,9,13,7,9,9,7,18,6,17,6,18), 1):
-    print(i) #== (3,10,9,10,18,9,9,9,9,3,7,9,9,4,9,16,13,9,9,3,9,3,8,13,8))
+# for i in T1ln9((7,1,0,2,17,9,9,9,9,7,14,18,18,9,9,13,7,9,9,7,18,6,17,6,18), 1):
+#     print(i) #== (3,10,9,10,18,9,9,9,9,3,7,9,9,4,9,16,13,9,9,3,9,3,8,13,8))
 
 def T2l9(fri_s: tuple[int], paridad: int):
     BS = reduce(
