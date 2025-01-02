@@ -1,11 +1,10 @@
-# E.L.: Explicación línea.
+# E.L.: Explicación línea =: EL:.
 
-from itertools import product, pairwise, combinations
+from itertools import product, pairwise
 from shutil import copy, move
 from os.path import join, exists
 from os import remove
 from functools import reduce
-from more_itertools import powerset
 
 ##########                       Para main.py                        ##########
 def guardar(coleccion: list[tuple], clase: tuple) -> None:
@@ -42,6 +41,14 @@ def blq(t: tuple, i: int, c_pos = True):
         if c_pos and 0 > i: raise IndexError
         return t[i]
     except IndexError: return 0
+
+def MS(largo: int, suma: int):                                                  # MS : Maneras de sumar
+    if largo == 1:                                                              # Obtiene todas las maneras de sumar "suma" en una tupla
+        yield (suma,)                                                           # de "largo" números.
+    else:                                                                       # Explicación: Recursivamente, cada manera se puede
+        for r in range(suma + 1):                                               # expresar como una tupla de largo "largo" - 1,
+            for t in MS(largo - 1, r):                                          # añadiendole al final, lo que le falta para dar "suma".
+                yield t + (suma - r, )                                          # Observar que MS es inyectiva en la segunda variable.
 
     # Condicionadores de existencia
 def is_seed_t1l9(fri_s, paridad): # Adaptable al caso (9 -> 0).
@@ -123,50 +130,48 @@ def T1ln9(fri_s: tuple[int], paridad: int):
         # Eliminamos la cantidad de nueves que se dictan en cada bloque.
         s_mod = tuple(
                     j for i, j in enumerate(fri_s)
-                      if i not in sum(
-                                        sec_nvs[b][r:]
-                                        for b, r in enumerate(conf_scrs), []
-                                    )
+                      if i not in sum(( sec_nvs[b][:r]
+                                        for b, r in enumerate(conf_scrs)), [])
                     )
         
         # Pantallamos para ver si la configuración vale la pena.
         if is_seed_t1l9(s_mod, paridad): continue
 
         # Obtenemos las posiciones donde podemos colocar nueves inoportunos.
-        a_mod = list(next(T1l9(s_mod, paridad)))
+        a_mod = next(T1l9(s_mod, paridad))
 
-        cuadre = lambda i, p: sec_nvs[i][p] - sum(conf_scrs[:i - p]) # Pendiente, aquí puede que ocurra un error cuando se eliminan colas
+        cuadre = lambda i, p: sec_nvs[i][p] - sum(conf_scrs[:i - p])
+
         p_dispo = tuple(                                                        # En esta variable se busca obtener las posiciones donde
                         tuple(                                                  # se puede colocar nueves inoportunos por bloque en T1l9.
                               cuadre(i, 0) - 1 + j                              # Explicación: Tengo len(conf_scrs) bloques, pero de
                               for j, (l, r) in enumerate(pairwise(              # ellos me interesan solo los que les remuevo algo.
                                   a_mod[cuadre(i, 0) - 1 : cuadre(i, -1) + 2]   # Por cada bloque, evaluo su correspondiente en el T1l9
                                 ), 1) if {l // 10, r // 10} == {0, 1}           # del modificado. Si una pareja está formada por uno que
-                            ) + (conf_scrs[i],)                                 # acarrea y otro que no, considero la posición que coloca
-                        for i in range(len(conf_scrs)) if conf_scrs[i]          # el nueve en medio de ellos.
+                            ) + (n,)                                            # acarrea y otro que no, considero la posición que coloca
+                        for i, n in enumerate(conf_scrs) if n                   # el nueve en medio de ellos.
                         )
+        
+        # Verificamos si la vecindad de cada bloque cuenta con espacio para     # El que posea T1l9 al remover, no significa que el
+        # colocar nueves inoportunos.                                           # espacio que dejó el nueve sea prospero para colocar 
+        if {1 for t in p_dispo if len(t) == 1}: continue                        # un nueve inoportuno.
+
         # Variamos
-        for b, distr in enumerate(
-                            product(
-                                *(MS(len(blk) - 1, blk[-1]) for blk in p_dispo)
-                            )):
-            a_mod_variado = a_mod.copy()
-            for i, n in enumerate(distr):
-                for _ in range(n): a_mod_variado.insert(
-                                                        p_dispo[b]       +
-                                                        sum(distr[:i])   +
-                                                        sum(
-                                                            k[-1]
-                                                            for k in p_dispo[:b]
-                                                            ),
-                                                        9
-                                                    )
+        for distr in product(                                                   # E.L.: distr es una tupla que indica la cantidad de
+                            *(MS(len(blk) - 1, blk[-1]) for blk in p_dispo)     # nueves que se van a colocar en cada espacio disponible
+                        ):                                                      # de cada bloque.
+            a_mod_variado = list(a_mod)
+            for b, dist_blq in enumerate(distr):                                # EL:Tupla con la cantidad de nueves en cada esp. del blq
+                for esp, cant in enumerate(dist_blq):
+                    for _ in range(cant):
+                        a_mod_variado.insert(
+                                            p_dispo[b][esp]         +           # E.L.: Es la posición donde se colocarán los nueves.
+                                            sum(dist_blq[:esp])     +           # E.L.: Considero el arraste que lleva agregar los otros.
+                                            sum(k[-1] for k in p_dispo[:b]),    # E.L.: Considero el arrastre de agregar los otros blqs.
+                                            9
+                                            )
 
-            yield a_mod_variado
-
-
-# for i in T1ln9((7,1,0,2,17,9,9,9,9,7,14,18,18,9,9,13,7,9,9,7,18,6,17,6,18), 1):
-#     print(i) #== (3,10,9,10,18,9,9,9,9,3,7,9,9,4,9,16,13,9,9,3,9,3,8,13,8))
+            yield tuple(a_mod_variado)
 
 def T2l9(fri_s: tuple[int], paridad: int):
     BS = reduce(
@@ -190,11 +195,3 @@ def falta_completar(nodos) -> tuple[tuple]:
     return tuple(filter(                                                        # Retorna los FRI que no son semilla.
                     lambda nodo: not is_seed(nodo),                             # Se espera que nodos sea un generador.
                     nodos))                                                     #
-
-def MS(largo: int, suma: int):                                                  # MS : Maneras de sumar
-    if largo == 1:                                                              # Obtiene todas las maneras de sumar "suma" en una tupla
-        yield (suma,)                                                           # de "largo" números.
-    else:                                                                       # Explicación: Recursivamente, cada manera se puede
-        for r in range(suma + 1):                                               # expresar como una tupla de largo "largo" - 1,
-            for t in MS(largo - 1, r):                                          # añadiendole al final, lo que le falta para dar "suma".
-                yield t + (suma - r, )                                          # Observar que MS es inyectiva en la segunda variable.
